@@ -1,27 +1,37 @@
 # Web page with assembly metric visualisations to facilitate rapid assessment and comparison of assembly quality.   
 
-Demo:  https://juke34.github.io/assembly-stats/
+Demo:  https://juke34.github.io/assembly-stats-easy/
 
 ## Table of content
 
-- [Quick start](#quick-start)
+- [Short instructions for the impatients (quick start)](#short-instructions-for-the-impatients-quick-start)
 - [Description](#description)
 - [Plot description](#plot-descritption)
+- [Generate statistics](#generate-statistics)
 - [The json input format](#the-json-input-format)
-- [Local Processing with pixi](#local-processing-with-pixi)
 - [Local Visualization](#local-visualization)
 - [Automatic Deployment with GitHub Actions](#automatic-deployment-with-github-actions)
 - [Acknowledgements](#acknowledgements)
 
-## Quick start
+## Short instructions for the impatients (quick start)
 
-1) Fork this repository.
-2) Place your genome assembly FASTA file(s) inside (`.fasta` or `.fa` extension). You should also remove the preexisting json exemple file first if you do not want it to be among the data visualised.
-3) Configure GitHub Pages (`Settings` > `Pages`) to work from `GitHub Actions`
-4) Commit and push your changes
-5) Visit your GitHub Pages site to view the assembly metric visualisations at: https://<your-github-username>.github.io/assembly-stats/
-
-That's it. The GitHub Actions workflow will automatically compute the statistics and deploy the visualisations.
+1) Fork this repository  
+2) Install pixi
+```bash
+curl -fsSL https://pixi.sh/install.sh | bash
+```
+3) Install dependencies
+```
+pixi install
+```
+4) Compute statistics on your genome assembly file (e.g., `genome_assembly.fa`).
+```bash
+pixi run asm2stats genome_assembly.fa > json/output.assembly-stats.json
+```
+5) Put as many JSON output files as needed into the `json/` directory. Extension must follow the pattern `.assembly-stats.json`. Prefix with a custom name to distinguish between different assemblies.
+6) Configure github pages (`Settings` > `Pages`) to work from `GitHub Actions`
+7) Commit and push your changes to your forked repository.
+8) Visit your GitHub Pages site to view the assembly metric visualisations at this URL: https://<your-github-username>.github.io/assembly-stats/
 
 ## Description
 
@@ -36,14 +46,20 @@ A _de novo_ genome assembly can be summarised by a number of metrics, including:
 
 assembly-stats supports two widely used presentations of these values, tabular and cumulative length plots, and introduces an additional circular plot that summarises most commonly used assembly metrics in a single visualisation.  Each of these presentations is generated using javascript from a common (JSON) data structure, allowing toggling between alternative views, and each can be applied to a single or multiple assemblies to allow direct comparison of alternate assemblies.  
 
+Tabular presentation allows direct comparison of exact values between assemblies, the limitations of this approach lie in the necessary omission of distributions and the challenge of interpreting ratios of values that may vary by several orders of magnitude.
+
 ![Screenshot](/screenshots/table.png "Table view")
+
+Cumulative scaffold length plots are highly effective for comparison of two or more assemblies, plotting both on a single set of axes reveals differences in assembled size and the N50 count very clearly. However, other metrics must still be tabulated or annotated on the plot for example N50 length and the longest scaffold length can be particularly difficult to determine from the plot alone. The scale for the axes is usually chosen to accommodate the data for a single assembly or set of assemblies, meaning that it is usually necessary to replot the data or consider the relative axis scales carefully to compare assemblies that have been plotted separately. The cumulative distribution plots in assembly-stats address the problem of scaling by allowing any combination of assemblies to be plotted together and allowing rescaling of the axes to fit any one of the individual assemblies.
 
 ![Screenshot](/screenshots/cumulative.png "Cumulative view")
 
+The circular plots have been introduced to overcome some of the shortcomings of tabular and cumulative distribution plots in a visualisation that allows rapid assessment of most common assembly metrics. The graphic is essentially scale independent so assemblies of any size with different strengths and weaknesses produce distinct patterns that can be recognised at a glance. While side by side presentation of a pair of assemblies on consistently scaled axes allows direct comparison, the standard presentation is designed to facilitate assessment of overall assembly quality by consideration of the keys features from the plot.
+
 ![Screenshot](/screenshots/assembly_stats.png "Circle view")
 
-## plot descritption
 
+## plot descritption
 - click on any colour tile in the legend to toggle visibility of that feature on/off
 - The inner radius of the circular plot represents the length of the longest scaffold in the assembly
 - The angle subtended by the first (red) segment within this plot indicates the percentage of the assembly that is in the longest scaffold
@@ -58,20 +74,52 @@ assembly-stats supports two widely used presentations of these values, tabular a
 - Complete, fragmented and duplicated BUSCO genes (if available) are shown in mid, light and dark green, respectively in the smaller plot in the upper right corner
 - Partial and complete CEGMA values (if available) are shown in light and dark green, respectively in the smaller plot in the upper right corner
 
-## The json input format
+## Generate statistics
 
-Data to be plotted must be supplied as a JSON format object.  As of version 1.1 data may be pre-binned to improve performance with assemblies containing potentially millions of contigs.  The simplest way to generate this is using the ``asm2stats.pl`` perl script in the ``pl`` folder:
+Data to be plotted must be supplied as a JSON format object.   
+The simplest way to generate this is using the ``asm2stats.pl`` perl script in the ``pl`` folder. 
+The scripts depend on the Perl `JSON` and `List::Util` modules. If you have the required dependencies installed, you can run the script directly as shown below otherwise see the `PIXI` section:
 
 ```bash
 perl asm2stats.pl genome_assembly.fa > output.json
 ```
 
+By default each bin reports a single GC/N percentage. Pass the ``--minmaxgc``/``-m`` option to also report the min/max/mean GC and N content per bin (computed per-sequence within each bin):
+
+```bash
+perl asm2stats.pl --minmaxgc genome_assembly.fa > output.minmaxgc.json
+```
+
 Run ``perl asm2stats.pl --help`` for the full list of options.
 
-This input format should be preferred as it improves performance and corrects for a bug in the javascript binning code by adjusting bin size to accommodate assembly spans that are not divisible by 1000, however the previous input format (with a full list of scaffold lengths is still supported).
+### pixi
 
-### input format
+Instead of installing Perl and these modules manually, you can use [pixi](https://pixi.sh) to manage the environment. The repo ships a `pixi.toml` at the root that declares these dependencies.
 
+- Install pixi (see [pixi.sh](https://pixi.sh) for platform instructions)
+```bash
+# Install pixi
+curl -fsSL https://pixi.sh/install.sh | bash
+# Install dependencies
+pixi install
+```
+- From the repo root, run the script through pixi, which will download the required Perl environment on first use:
+
+```bash
+pixi run asm2stats json/genome_assembly.fa > json/output.assembly-stats.json
+pixi run asm2stats --minmaxgc json/genome_assembly.fa > json/output.assembly-stats.minmaxgc.json
+```
+
+- Alternatively, drop into a shell with the environment activated and call the script directly:
+
+```bash
+pixi shell
+perl pl/asm2stats.pl genome_assembly.fa > output.json
+perl pl/asm2stats.pl --minmaxgc genome_assembly.fa > output.minmaxgc.json
+```
+
+## The json input format
+ 
 The json object contains the following keys:
 - ``assembly`` - the total assembly span
 - ``ATGC`` - the assembly span without Ns (redundant if ``N`` is specified)
@@ -87,6 +135,7 @@ The json object contains the following keys:
 - ``binned_contig_counts`` - (optional) an array of 1000 contig counts representing the N0.1 to N100 contig numbers for the assembly
 - ``binned_Ns`` - (optional) an array of 1000 values representing the N content of each bin based on size-sorted scaffold sequences
 - ``binned_GCs`` - (optional) an array of 1000 values representing the GC content of each bin based on size-sorted scaffold sequences
+
 
 Additional data will be plotted, if added to the stats object including:
 - CEGMA scores
@@ -119,7 +168,6 @@ It is also possible to programmatically toggle the visibility of plot features b
 ```javascript
   asm.toggleVisible(['asm-longest_pie','asm-count']);
 ```
-
 ## Local Visualization
 
 In order to visualize the assembly statistics locally, you can start a simple HTTP server:
@@ -130,39 +178,6 @@ python3 -m http.server 8000
 
 and then access the index.html page in your web browser at `http://localhost:8000/index.html`.
 
-## Local Processing with pixi
-
-You can also compute assembly statistics locally using [pixi](https://pixi.sh). Install pixi for your platform:
-
-```bash
-curl -fsSL https://pixi.sh/install.sh | bash
-```
-
-From the repository root, install the dependencies:
-
-```bash
-pixi install
-```
-
-Then run the script on your FASTA file(s):
-
-```bash
-pixi run asm2stats data/your_assembly.fasta > json/your_assembly.assembly-stats.json
-```
-
-Or with min/max GC reporting:
-
-```bash
-pixi run asm2stats --minmaxgc data/your_assembly.fasta > json/your_assembly.assembly-stats.json
-```
-
-You can also drop into an interactive shell with the environment activated:
-
-```bash
-pixi shell
-perl pl/asm2stats.pl data/your_assembly.fasta > json/your_assembly.assembly-stats.json
-```
-
 ## Automatic Deployment with GitHub Actions
 
 The repository includes a [GitHub Actions workflow](/.github/workflows/deploy-pages.yml) that automatically deploys the site to GitHub Pages every time a change is pushed to the `master` branch (it can also be triggered manually from the `Actions` tab).
@@ -170,8 +185,8 @@ The repository includes a [GitHub Actions workflow](/.github/workflows/deploy-pa
 To enable it:
 - Go to `Settings` > `Pages`
 - Under **Source**, select `GitHub Actions`
-- Add your FASTA file(s) to the `data/` folder and push to `master` (or run the workflow manually)
-- The workflow will compute assembly statistics from all FASTA files in `data/` and deploy the visualisations automatically
+- Push to `master` (or run the workflow manually) and the site will be built and published automatically
+
 
 ## Acknowledgements
 
