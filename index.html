@@ -164,6 +164,7 @@
               }
             }
             if (foundAssemblies.length > 0) {
+              foundAssemblies.sort();
               populateSelector(foundAssemblies);
             } else {
               populateSelector([assemblies[0]]);
@@ -180,7 +181,8 @@
           .append('option')
           .attr('value', function(d){ return d; })
           .text(function(d){ return d; });
-        // Set current value
+        // Set current value to first assembly (alphabetically sorted)
+        currentAssembly = assembliesList[0];
         select.property('value', currentAssembly);
         // Handle selection change
         select.on('change', function() {
