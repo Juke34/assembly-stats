@@ -34,6 +34,7 @@ jobs:
           mkdir -p json
 
           for fasta in data/*.fasta data/*.fa data/*.fa.gz; do
+            [ -e "$fasta" ] || continue
 
             name=$(basename "$fasta" | sed 's/\.\(fasta\|fa\|fa\.gz\)$//')
 
@@ -44,6 +45,7 @@ jobs:
 
           # Also copy any pre-existing .assembly-stats.json from data/
           for json in data/*.assembly-stats.json; do
+            [ -e "$json" ] || continue
 
             name=$(basename "$json")
 
