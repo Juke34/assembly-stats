@@ -3,9 +3,44 @@
 use strict;
 use List::Util qw(reduce);
 use JSON;
+use Getopt::Long;
+use File::Basename;
 
 my $break = 10; # number of consecutive Ns to break scaffolds into contigs
 my $bins = 1000; # number of bins to place sequences into
+my $minmaxgc = 0; # report per-bin min/max/mean GC and N instead of a single value
+my $help = 0;
+
+GetOptions(
+  'minmaxgc|m' => \$minmaxgc,
+  'help|h'     => \$help,
+) or usage(1);
+
+usage(0) if $help;
+usage(1) if !@ARGV && -t STDIN;
+
+sub usage {
+  my ($exit_code) = @_;
+  my $prog = basename($0);
+  print <<"END_USAGE";
+Usage: $prog [options] <genome_assembly.fa> > output.json
+
+Convert a genome assembly FASTA file into the pre-binned JSON format used by
+assembly-stats (see json/output.assembly-stats.json for an example).
+
+Options:
+  -m, --minmaxgc   Report the per-bin min/max/mean GC and N content instead
+                   of a single value per bin.
+  -h, --help       Show this help message and exit.
+
+Examples:
+  perl $prog genome.fa > output.json
+  perl $prog --minmaxgc genome.fa > output.minmaxgc.json
+  cat genome.fa | perl $prog > output.json
+END_USAGE
+  exit $exit_code;
+}
+
 
 # read scaffolds from file and split into contigs
 my $i = -1;
@@ -22,8 +57,8 @@ while (<>){
 }
 push @ctgs,split_scaf($scafs[$i],$break);
 
-my $output = bin_seqs(\@scafs,$bins,1);
-my $extra = bin_seqs(\@ctgs,$bins);
+my $output = bin_seqs(\@scafs,$bins,1,$minmaxgc);
+my $extra = bin_seqs(\@ctgs,$bins,0,$minmaxgc);
 
 $output->{contigs} = $extra->{scaffolds};
 $output->{binned_contig_counts} = $extra->{binned_scaffold_counts};
@@ -35,7 +70,7 @@ $json->pretty(1);
 print $json->encode($output),"\n";
 
 sub bin_seqs {
-  my ($ref,$bins,$flag) = @_;
+  my ($ref,$bins,$flag,$minmaxgc) = @_;
   my %return;
   # sort sequences (longest first)
   my @seqs = sort { length $b <=> length $a } @$ref;
@@ -59,15 +94,46 @@ sub bin_seqs {
   my @binned_counts;
   my @binned_gcs;
   my @binned_ns;
+  # only accumulated when $minmaxgc is enabled
+  my @binseqs = ();
   # place seq lengths and count in $bins bins
   for (my $x = 0; $x < $count; $x++){
     $sum += $seq_lengths[$x];
     $catted .= $seqs[$x];
+    push @binseqs,$seqs[$x] if $minmaxgc;
     while ($sum >= ($y+1)*$fbin){
       $z += $bin;
       $binned_lengths[$y] = $seq_lengths[$x];
       $binned_counts[$y] = $x+1;
       if ($flag){
+        if ($minmaxgc){
+          # compute per-sequence min/max/mean GC and N content for this bin
+          my $sum_ns = 0;
+          my $sum_gcs = 0;
+          my $min_ns = 999999999999;
+          my $min_gcs = 999999999999;
+          my $max_ns = -1;
+          my $max_gcs = -1;
+          my $nseqs = scalar @binseqs;
+          while (my $str = shift @binseqs){
+            my $ns = () = $str =~ /n/gi;
+            my $gcs = () = $str =~ /[gc]/gi;
+            $ns /= length($str);
+            $ns = sprintf "%.3f",$ns*100;
+            $ns *= 1;
+            $sum_ns += $ns;
+            $gcs /= (length($str) - $ns);
+            $gcs = sprintf "%.3f",$gcs*100;
+            $gcs *= 1;
+            $sum_gcs += $gcs;
+            $min_ns = $ns if $ns < $min_ns;
+            $min_gcs = $gcs if $gcs < $min_gcs;
+            $max_ns = $ns if $ns > $max_ns;
+            $max_gcs = $gcs if $gcs > $max_gcs;
+          }
+          $binned_ns[$y] = {'mean'=>$sum_ns/$nseqs,'max'=>$max_ns,'min'=>$min_ns};
+          $binned_gcs[$y] = {'mean'=>$sum_gcs/$nseqs,'max'=>$max_gcs,'min'=>$min_gcs};
+        }
         # also bin gc and n content
         my $string = substr($catted,0,$bin,'');
         # apply a correction to accommodate non-integer bin-sizes
@@ -78,12 +144,16 @@ sub bin_seqs {
           $extra = int($correction+0.5);
           $z += $correction;
         }
-        $binned_ns[$y] = () = $string =~ /n/gi;
-        $binned_gcs[$y] = () = $string =~ /[gc]/gi;
-        $nsum += $binned_ns[$y];
-        $gcsum += $binned_gcs[$y];
-        $binned_gcs[$y] /= ($bin+$extra-$binned_ns[$y]) / 100;
-        $binned_ns[$y] /= ($bin+$extra) / 100;
+        my $bin_ns = () = $string =~ /n/gi;
+        my $bin_gcs = () = $string =~ /[gc]/gi;
+        $nsum += $bin_ns;
+        $gcsum += $bin_gcs;
+        unless ($minmaxgc){
+          $bin_gcs = ($bin+$extra-$bin_ns) == 0 ? 0 : $bin_gcs / (($bin+$extra-$bin_ns) / 100);
+          $bin_ns /= ($bin+$extra) / 100;
+          $binned_gcs[$y] = $bin_gcs;
+          $binned_ns[$y] = $bin_ns;
+        }
       }
       $y++;
     }

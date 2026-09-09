@@ -1,0 +1,12 @@
+# pixi
+.pixi/
+pixi.lock
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp

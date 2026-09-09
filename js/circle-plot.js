@@ -373,6 +373,18 @@ Assembly.prototype.drawPlot = function(parent_div, longest, circle_span) {
     plot_arc(slhg, radii.core[1] - lScale(scaffolds[0]), radii.core[1], pScale(long_pct), pScale(long_pct), 'asm-longest_pie asm-highlight');
   }
 
+  // add assembly name centered at the top of the circle as a title
+  g.append('text')
+    .attr('class', 'asm-assembly_name')
+    .attr('x', 0)
+    .attr('y', -radii.core[1] - 90)
+    .attr('text-anchor', 'middle')
+    .style('font-size', '20px')
+    .style('font-weight', 'bold')
+    .style('fill', '#333')
+    .style('pointer-events', 'none')
+    .text(this.name || '');
+
   // add gridlines at powers of 10
   var length_seq = [];
   var power = 2;
@@ -510,6 +522,8 @@ Assembly.prototype.drawPlot = function(parent_div, longest, circle_span) {
   //txt.append('tspan').text('distribution').attr('x',0).attr('dy',20);
 
   var key = lsg.append('g').attr('transform', 'translate(' + (-size / 2 + 10) + ',' + (-size / 2 + 28) + ')');
+
+
   key.append('rect').attr('height', w).attr('width', w).attr('class', 'asm-count asm-toggle');
   var count_txt = key.append('text').attr('x', w + 3).attr('y', w - 1).attr('class', 'asm-key')
   count_txt.append('tspan').text('Log')

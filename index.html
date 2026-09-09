@@ -13,6 +13,24 @@
     <script type="text/javascript" src="js/square-plot.js?v1"></script>
     <script type="text/javascript" src="js/table.js?v1"></script>
     <style>
+      #assembly-selector {
+        position:fixed;
+        top:10px;
+        left:10px;
+        z-index:1000;
+      }
+      #assembly-selector select {
+        padding:5px 10px;
+        font-size:14px;
+        border:solid 2px #555555;
+        border-radius:5px;
+        background-color:#ffffff;
+        color:#333333;
+        cursor:pointer;
+      }
+      #assembly-selector select:hover {
+        background-color:#f0f0f0;
+      }
       html, body {
         padding:0px;
         margin:0px;
@@ -71,6 +89,9 @@
     </style>
 
     <div id="assembly_stats"></div>
+    <div id="assembly-selector">
+      <select id="asm-select"></select>
+    </div>
 
     <script>
       var queries = window.location.href.replace(/^.+\?/,'').split('&')
@@ -90,96 +111,126 @@
       var views = params['view'];
       if (!views) views = ['circle']
       var div = d3.select('div#assembly_stats')
-      if (params['altView']){
-        views = views.concat(params['altView'])
-        // generate tabs
-        var tab_container = div.append('div').attr('class','asm-tab-container')
-        var tabcount = views.length;
-        var tabwidth = 100;
-        for (var i = 0; i < tabcount; i++){
-          var tab_div = tab_container.append('div')
-                                     .attr('class',function(){if (i == 0) return 'asm-tab active'; return 'asm-tab'})
-                                     .style('width',tabwidth)
-                                     .text(views[i])
-          tab_div.on('click',function(){
-            d3.selectAll('.asm-tab').classed('active',false);
-            d3.select(this).classed('active',true);
-            var view = d3.select(this).text();
-            if (view == 'circle'){
-              plot_container.html('')
-              arr[0].drawPlot('asm-plot-container');
-            }
-            else if (view == 'compare') {
-              plot_container.html('')
-              compare(arr[0],arr[1]);
-            }
-            else if (view == 'cumulative') {
-              plot_container.html('')
-              arr[0].squarePlot('asm-plot-container');
-              arr[0].addKey(assemblies)
-              setTimeout(function(){
-                arr.forEach(function(asm,index){
-                  if (index > 0){
-                    var data = asm.prepareLine();
-                    arr[0].addLine(data,asm.name,asm);
-                  }
-                })
-              },250)
-            }
-            else if (view == 'table') {
-              plot_container.html('')
-              arr[0].drawTable('asm-plot-container');
-              //setTimeout(function(){
-                arr.forEach(function(asm,index){
-                  if (index > 0){
-                    arr[0].addColumn(asm);
-                  }
-                })
-              //},250)
-            }
-          })
 
-        }
-      }
-      var plot_container = div.append('div').attr('class','asm-plot-container').attr('id','asm-plot-container')
-      document.title = assemblies[0] + " assembly stats"
+      // Auto-discover available JSON files
+      var allAssemblies = [];
+      var currentAssembly = assemblies[0];
       var arr = [];
-      assemblies.forEach(function(assembly,index){
-        d3.json(path+assembly+".assembly-stats.json", function(error, json) {
-          if (error) return console.warn(error);
-          arr[index] = new Assembly (json);
-          arr[index].name = assembly.replace('.','_');;
-          if (views[0] == 'compare'){
-            if (index <= 1) compare(arr[0],arr[1]);
-          }
-          else if (views[0] == 'cumulative'){
-            if (index == 0){
-              arr[0].squarePlot('asm-plot-container');
-              arr[0].addKey(assemblies)
-            }
-            else {
-              var data = arr[index].prepareLine();
-              setTimeout(function(){
-                arr[0].addLine(data,assembly,arr[index]);
-              },250)
-            }
-          }
-          else if (views[0] == 'table'){
-            if (index == 0){
-              arr[0].drawTable('asm-plot-container');
-            }
-            else {
-              setTimeout(function(){
-                arr[0].addColumn(arr[index]);
-              },250)
-            }
-          }
-          else {
+      var plot_container;
+
+      function getAssemblyJsonName(asmName) {
+        return asmName.replace('.','_');
+      }
+
+      function loadAssembly(assemblyName) {
+        currentAssembly = assemblyName;
+        plot_container.html('');
+        arr = [];
+        document.title = assemblyName + " assembly stats";
+        $('#asm-select').val(assemblyName);
+        d3.json(path+assemblyName+".assembly-stats.json", function(error, json) {
+          if (error) { console.warn(error); return; }
+          arr[0] = new Assembly(json);
+          arr[0].name = getAssemblyJsonName(assemblyName);
+          if (views[0] == 'circle') {
             arr[0].drawPlot('asm-plot-container');
           }
+          else if (views[0] == 'cumulative') {
+            arr[0].squarePlot('asm-plot-container');
+            arr[0].addKey([assemblyName])
+          }
+          else if (views[0] == 'table') {
+            arr[0].drawTable('asm-plot-container');
+          }
         });
-      })
+      }
 
+      // Try to fetch directory listing, fallback to default assemblies
+      function discoverAssemblies() {
+        fetch(path)
+          .then(function(response) { 
+            if (!response.ok) throw new Error('not ok');
+            return response.text(); 
+          })
+          .then(function(text) {
+            var foundAssemblies = [];
+            var regex = /<a[^>]+href="([^"]+?)\.assembly-stats[^.]*\.json"[^>]*>([^<]+)<\/a>/g;
+            var match;
+            while ((match = regex.exec(text)) !== null) {
+              var asmName = match[2] || match[1];
+              asmName = asmName.replace(/\.assembly-stats[^.]*\.json$/, '');
+              if (asmName && foundAssemblies.indexOf(asmName) === -1) {
+                foundAssemblies.push(asmName);
+              }
+            }
+            if (foundAssemblies.length > 0) {
+              populateSelector(foundAssemblies);
+            } else {
+              populateSelector([assemblies[0]]);
+            }
+          })
+          .catch(function() {
+            populateSelector([assemblies[0]]);
+          });
+      }
+      function populateSelector(assembliesList) {
+        allAssemblies = assembliesList;
+        var select = d3.select('#asm-select');
+        select.selectAll('option').data(assembliesList).enter()
+          .append('option')
+          .attr('value', function(d){ return d; })
+          .text(function(d){ return d; });
+        // Set current value
+        select.property('value', currentAssembly);
+        // Handle selection change
+        select.on('change', function() {
+          var selected = d3.select(this).property('value');
+          loadAssembly(selected);
+        });
+        // Create plot container
+        plot_container = div.append('div').attr('class','asm-plot-container').attr('id','asm-plot-container');
+
+        // Create view tabs if altView is specified
+        var allViews = views.slice();
+        if (params['altView']){
+          allViews = allViews.concat(params['altView']);
+          // generate tabs
+          var tab_container = div.append('div').attr('class','asm-tab-container')
+          var tabcount = allViews.length;
+          var tabwidth = 100;
+          for (var i = 0; i < tabcount; i++){
+            var tab_div = tab_container.append('div')
+                                       .attr('class',function(){if (i == 0) return 'asm-tab active'; return 'asm-tab'})
+                                       .style('width',tabwidth)
+                                       .text(allViews[i])
+            tab_div.on('click',function(){
+              d3.selectAll('.asm-tab').classed('active',false);
+              d3.select(this).classed('active',true);
+              var view = d3.select(this).text();
+              if (view == 'circle'){
+                plot_container.html('')
+                if (arr[0]) arr[0].drawPlot('asm-plot-container');
+              }
+              else if (view == 'cumulative') {
+                plot_container.html('')
+                if (arr[0]) {
+                  arr[0].squarePlot('asm-plot-container');
+                  arr[0].addKey([currentAssembly])
+                }
+              }
+              else if (view == 'table') {
+                plot_container.html('')
+                if (arr[0]) arr[0].drawTable('asm-plot-container');
+              }
+            })
+          }
+        }
+        // Load initial assembly
+        loadAssembly(currentAssembly);
+      }
+
+      // Start discovery
+      discoverAssemblies();
       function compare (asm1,asm2){
         if (!asm1) return;
         if (!asm2) return;

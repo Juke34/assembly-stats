@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+
+      - name: Generate assembly stats from FASTA files
+        run: |
+          mkdir -p json
+          for fasta in data/*.fasta data/*.fa data/*.fa.gz 2>/dev/null; do
+            [ -e "$fasta" ] || continue
+            name=$(basename "$fasta" | sed 's/\.\(fasta\|fa\|fa\.gz\)$//')
+            echo "Processing $fasta -> json/${name}.assembly-stats.json"
+            pixi run asm2stats "$fasta" > "json/${name}.assembly-stats.json"
+          done
+          # Also copy any pre-existing .assembly-stats.json from data/
+          for json in data/*.assembly-stats.json 2>/dev/null; do
+            [ -e "$json" ] || continue
+            name=$(basename "$json")
+            echo "Copying $json -> json/$name"
+            cp "$json" "json/$name"
+          done
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

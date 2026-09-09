@@ -1,5 +1,5 @@
 table {
-  font-size: 0.75em;
+  font-size: 1.25em;
   text-align: right;
   margin: 0 auto;
   margin-top:20px;
@@ -13,5 +13,5 @@ tr:nth-child(1) {
   color: #000;
 }
 td {
-  padding: 4px;
+  padding: 8px;
 }

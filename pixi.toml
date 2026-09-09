@@ -1,0 +1,14 @@
+[workspace]
+name = "assembly-stats"
+version = "0.1.0"
+description = "Perl scripts to convert genome assemblies into JSON stats for assembly-stats"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+perl = "*"
+perl-json = "*"
+perl-list-moreutils = "*"
+
+[tasks]
+asm2stats = "perl pl/asm2stats.pl"
