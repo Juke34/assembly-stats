@@ -104,7 +104,8 @@ Assembly.prototype.addKey = function(assemblies) {
                         .attr('transform',function(d,i){return 'translate(0,'+(i*25)+')'})
   var rect = rows_enter.append('rect').attr('height',25).attr('width',150).attr('y',-12.5).style('fill','rgba(255,255,255,0.01)');
   rows_enter.append('text').attr('class',function(d){return 'asm-square-key-text '+d});
-  rows.select('text').text(function(d){return d})
+  rows_enter.append('text').attr('class',function(d){return 'asm-square-key-text '+d})
+  rows.select('text').text(function(d){return ''})
   rect.on('mouseover',function(d){
     d = d.replace('.','_');
     plot_area.select('text.'+d).classed('asm-square-focus',true)

@@ -12,3 +12,4 @@ perl-list-moreutils = "*"
 
 [tasks]
 asm2stats = "perl pl/asm2stats.pl"
+manifest = "cd json && printf '[' > manifest.json && first=1; for f in *.assembly-stats.json; do [ -e \"$f\" ] || continue; name=\"${f%.assembly-stats.json}\"; if [ \"$first\" -eq 1 ]; then first=0; else printf ',' >> manifest.json; fi; printf '\"%s\"' \"$name\" >> manifest.json; done; printf ']' >> manifest.json"

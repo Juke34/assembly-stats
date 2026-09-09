@@ -43,9 +43,7 @@ text.asm-square-focus {
   dominant-baseline:alphabetical;
 }
 .asm-reference-key text {
-  stroke:none;
-  stroke-width:0px;
-  fill:#e31a1c;
+  display:none;
 }
 .d3-tip {
   pointer-events:none;
